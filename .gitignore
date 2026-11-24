@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.py[cod]
+/7ldata.duckdb
+/7ldata.duckdb.wal
+/7ldata.duckdb.zst
+/7ldata.duckdb.zst.part
+/7ldata.duckdb.part
