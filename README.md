@@ -2,7 +2,7 @@
 
 This submission forecasts daily unit sales before returns for **3,920 products** on `myshop.de` in Germany from **September 7–20, 2026**. The export covers all **54,880 product-date pairs** in the supplied sample and totals **230,030.50 units**.
 
-[Forecast CSV](predictions.csv) · [Backtest results](baseline_evidence.txt) · [Planner evidence](planner_evidence.txt) · [Run instructions](#reproduce-the-results) · [Original case study](CASE_STUDY.md)
+[Forecast CSV](predictions.csv) · [Backtest results](results/baseline_evidence.txt) · [Planner evidence](results/planner_evidence.txt) · [Run instructions](#reproduce-the-results) · [Original case study](CASE_STUDY.md)
 
 ## Planner memo
 
@@ -28,7 +28,7 @@ Cleaned sales fell **6.53%** across all usable observations. Matching the same p
 - **Stock.** The only stock snapshot, on September 1, covered all 37 products and recorded zero product-days with zero starting stock. Availability on the remaining days is unknown.
 - **Promotions.** Using the September 6 plan, matched sales fell 6.36% on pairs whose later day had no promotion scheduled and 6.69% on pairs whose later day had one. Estimating a promotion effect would require actual execution data and a comparison that accounts for which products and dates were selected.
 
-The investigation starts with a full product-day grid for the cohort. It sums clicks and takes the minimum recorded starting stock per product-day, then flags whether any planned promotion overlaps that day. Each join preserves the product-day grain. [Cohort SQL](planner_sales.sql) · [Supporting SQL](planner_factors.sql) · [Saved results](planner_evidence.txt)
+The investigation starts with a full product-day grid for the cohort. It sums clicks and takes the minimum recorded starting stock per product-day, then flags whether any planned promotion overlaps that day. Each join preserves the product-day grain. [Cohort SQL](sql/planner_sales.sql) · [Supporting SQL](sql/planner_factors.sql) · [Saved results](results/planner_evidence.txt)
 
 ## Backtest and forecast selection
 
@@ -51,13 +51,13 @@ WAPE and signed bias divide by the sum of actual units. The script returns a mis
 
 The **final export** uses two weeks for Focus article / Tops, where this lookback improved WAPE in three of four windows and reduced pooled overforecasting. It uses four weeks for the rest of the catalog. Across all products, the four-week lookback had lower bias and RMSE in the primary backtest. The table reports the two lookbacks applied separately. These historical windows informed model selection, and scoring the combined rule remains follow-up work. The forecast assumes that traffic, availability, and promotion activity continue to support sales patterns similar to the recent lookback periods.
 
-A 10,000-unit observation for product `670307` on July 8 drove several large July forecast errors. Excluding that observation from training reduced pooled overall RMSE from 10.743 to 0.949 for four weeks and from 15.159 to 0.933 for two weeks. The primary run retains the observed value. [Forecast SQL](weekday_forecasts.sql) · [Backtest results](baseline_evidence.txt) · [Sensitivity results](outlier_sensitivity_evidence.txt)
+A 10,000-unit observation for product `670307` on July 8 drove several large July forecast errors. Excluding that observation from training reduced pooled overall RMSE from 10.743 to 0.949 for four weeks and from 15.159 to 0.933 for two weeks. The primary run retains the observed value. [Forecast SQL](sql/weekday_forecasts.sql) · [Backtest results](results/baseline_evidence.txt) · [Sensitivity results](results/outlier_sensitivity_evidence.txt)
 
 ## Data preparation
 
 - Kept transactions for `DE` and `myshop.de` from the start of continuous sales history on September 16, 2024 through September 6, 2026 at 23:59:59. This excludes the January 1970 timestamps.
 - Removed 26,832 exact duplicate rows representing 100,239 recorded units. Trimming and lowercasing product IDs recovered 24,543 matches while preserving uniqueness across the 3,920 catalog IDs. The catalog join matched 2,668,586 deduplicated rows.
-- Summed `sales_before_returns` by product and date. Missing observations remain unknown because a missing record can indicate incomplete coverage. The model excludes 482 negative daily totals from training and scoring because the target is nonnegative sales before returns. [Transaction SQL](historical_transactions.sql) · [Daily sales SQL](daily_sales.sql)
+- Summed `sales_before_returns` by product and date. Missing observations remain unknown because a missing record can indicate incomplete coverage. The model excludes 482 negative daily totals from training and scoring because the target is nonnegative sales before returns. [Transaction SQL](sql/historical_transactions.sql) · [Daily sales SQL](sql/daily_sales.sql)
 
 ## Reproduce the results
 
@@ -87,15 +87,15 @@ partial.rename("7ldata.duckdb")
 ```
 
 ```powershell
-& .\.venv\Scripts\python.exe forecast_baseline.py
-& .\.venv\Scripts\python.exe forecast_baseline.py --exclude-july-spike
-& .\.venv\Scripts\python.exe planner_investigation.py
-& .\.venv\Scripts\python.exe export_predictions.py
+& .\.venv\Scripts\python.exe scripts/forecast_baseline.py
+& .\.venv\Scripts\python.exe scripts/forecast_baseline.py --exclude-july-spike
+& .\.venv\Scripts\python.exe scripts/planner_investigation.py
+& .\.venv\Scripts\python.exe scripts/export_predictions.py
 ```
 
 On macOS or Linux, follow the linked data instructions, create the environment with `python3 -m venv .venv`, and activate it with `source .venv/bin/activate`. Use `python` in place of `& .\.venv\Scripts\python.exe` in the install and run commands.
 
-The scripts write the evidence files and `predictions.csv` to the repository root. The exporter checks for missing or duplicate product-date keys and for finite, nonnegative predictions. It writes product IDs and dates in the exact order of `sample_prediction.csv`.
+The backtest and planner scripts write their evidence to `results/`. The exporter writes `predictions.csv` to the repository root. The exporter checks for missing or duplicate product-date keys and for finite, nonnegative predictions. It writes product IDs and dates in the exact order of `sample_prediction.csv`.
 
 ## AI disclosure
 

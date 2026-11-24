@@ -8,16 +8,17 @@ import duckdb
 
 
 def main():
-    project = Path(__file__).resolve().parent
+    project = Path(__file__).resolve().parents[1]
+    sql_dir = project / "sql"
     with duckdb.connect(str(project / "7ldata.duckdb"), read_only=True) as db:
         db.execute("CREATE TEMP VIEW forecast_origins AS SELECT DATE '2026-09-06' AS origin")
 
         for name in ("historical_transactions", "daily_sales"):
-            sql = (project / f"{name}.sql").read_text(encoding="utf-8-sig")
+            sql = (sql_dir / f"{name}.sql").read_text(encoding="utf-8-sig")
             db.execute(f"CREATE TEMP VIEW {name} AS {sql}")
 
         db.execute("CREATE TEMP VIEW forecast_history AS SELECT * FROM daily_sales")
-        sql = (project / "weekday_forecasts.sql").read_text(encoding="utf-8-sig")
+        sql = (sql_dir / "weekday_forecasts.sql").read_text(encoding="utf-8-sig")
         db.execute(f"CREATE TEMP VIEW weekday_forecasts AS {sql}")
 
         model_rows = db.execute("""

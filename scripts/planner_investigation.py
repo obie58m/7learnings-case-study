@@ -4,7 +4,9 @@ import duckdb
 
 
 def main():
-    project = Path(__file__).resolve().parent
+    project = Path(__file__).resolve().parents[1]
+    sql_dir = project / "sql"
+    results_dir = project / "results"
     checks = {
         "Sales and coverage by period": """
             SELECT period, COUNT(DISTINCT product_id) AS products,
@@ -81,7 +83,7 @@ def main():
 
     with duckdb.connect(str(project / "7ldata.duckdb"), read_only=True) as db:
         for name in ("historical_transactions", "daily_sales", "planner_sales", "planner_factors"):
-            sql = (project / f"{name}.sql").read_text(encoding="utf-8-sig")
+            sql = (sql_dir / f"{name}.sql").read_text(encoding="utf-8-sig")
             db.execute(f"CREATE TEMP VIEW {name} AS {sql}")
 
         sections = []
@@ -97,7 +99,8 @@ def main():
             print(", ".join(f"{name} ({kind})" for name, kind, *_ in columns))
 
     output = "\n\n".join(sections) + "\n"
-    (project / "planner_evidence.txt").write_text(output, encoding="utf-8")
+    results_dir.mkdir(exist_ok=True)
+    (results_dir / "planner_evidence.txt").write_text(output, encoding="utf-8")
     print("\n" + output, end="")
 
 

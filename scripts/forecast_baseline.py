@@ -8,7 +8,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--exclude-july-spike", action="store_true")
     args = parser.parse_args()
-    project = Path(__file__).resolve().parent
+    project = Path(__file__).resolve().parents[1]
+    sql_dir = project / "sql"
+    results_dir = project / "results"
     with duckdb.connect(str(project / "7ldata.duckdb"), read_only=True) as db:
         db.execute("""
             CREATE TEMP VIEW forecast_origins AS
@@ -17,7 +19,7 @@ def main():
                          (DATE '2026-08-09'), (DATE '2026-08-23')) AS dates(origin)
         """)
         for name in ("historical_transactions", "daily_sales"):
-            sql = (project / f"{name}.sql").read_text(encoding="utf-8-sig")
+            sql = (sql_dir / f"{name}.sql").read_text(encoding="utf-8-sig")
             db.execute(f"CREATE TEMP VIEW {name} AS {sql}")
 
         history = "SELECT * FROM daily_sales"
@@ -29,7 +31,7 @@ def main():
             """
         db.execute(f"CREATE TEMP VIEW forecast_history AS {history}")
 
-        forecasts = (project / "weekday_forecasts.sql").read_text(encoding="utf-8-sig")
+        forecasts = (sql_dir / "weekday_forecasts.sql").read_text(encoding="utf-8-sig")
         db.execute(f"CREATE TEMP VIEW weekday_forecasts AS {forecasts}")
 
         result = db.execute("""
@@ -75,7 +77,8 @@ def main():
 
     output = "\n".join(lines) + "\n"
     evidence = "outlier_sensitivity_evidence.txt" if args.exclude_july_spike else "baseline_evidence.txt"
-    (project / evidence).write_text(output, encoding="utf-8")
+    results_dir.mkdir(exist_ok=True)
+    (results_dir / evidence).write_text(output, encoding="utf-8")
     print(output, end="")
 
 
