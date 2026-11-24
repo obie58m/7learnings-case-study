@@ -61,7 +61,9 @@ A 10,000-unit observation for product `670307` on July 8 drove several large Jul
 
 ## Reproduce the results
 
-Run these commands from the repository root. The scripts were run with Python 3.10 and DuckDB 1.5.6. The PowerShell commands also install Zstandard 0.25.0 for decompression.
+Run the section for your operating system from the repository root. The workflow was tested on Windows with Python 3.10.7, DuckDB 1.5.6, and Zstandard 0.25.0.
+
+### Windows (PowerShell)
 
 ```powershell
 python -m venv .venv
@@ -93,7 +95,43 @@ partial.rename("7ldata.duckdb")
 & .\.venv\Scripts\python.exe scripts/export_predictions.py
 ```
 
-On macOS or Linux, follow the linked data instructions, create the environment with `python3 -m venv .venv`, and activate it with `source .venv/bin/activate`. Use `python` in place of `& .\.venv\Scripts\python.exe` in the install and run commands.
+### macOS and Linux (Bash or Zsh)
+
+Create and activate the Python environment.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install duckdb==1.5.6 zstandard==0.25.0
+```
+
+If `7ldata.duckdb` is absent, download and decompress the archive in the repository root.
+
+```bash
+curl --fail --location --output 7ldata.duckdb.zst \
+  "https://storage.googleapis.com/candidate-01-7l-datascience/7ldata.duckdb.zst" &&
+  python - <<'PY'
+from pathlib import Path
+
+import zstandard
+
+partial = Path("7ldata.duckdb.part")
+with open("7ldata.duckdb.zst", "rb") as source, partial.open("wb") as target:
+    zstandard.ZstdDecompressor().copy_stream(source, target)
+partial.rename("7ldata.duckdb")
+PY
+```
+
+Run the backtests, planner analysis, and export.
+
+```bash
+python scripts/forecast_baseline.py
+python scripts/forecast_baseline.py --exclude-july-spike
+python scripts/planner_investigation.py
+python scripts/export_predictions.py
+```
+
+### Generated files
 
 The backtest and planner scripts write their evidence to `results/`. The exporter writes `predictions.csv` to the repository root. The exporter checks for missing or duplicate product-date keys and for finite, nonnegative predictions. It writes product IDs and dates in the exact order of `sample_prediction.csv`.
 
