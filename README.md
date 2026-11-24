@@ -1,208 +1,102 @@
-# 7Learnings Data Scientist Case Study: Retail Demand Forecasting
+# 7Learnings retail demand forecasting case study
 
-Welcome to the **7Learnings Data Scientist Case Study**!
+This submission forecasts daily unit sales before returns for **3,920 products** on `myshop.de` in Germany from **September 7–20, 2026**. The export covers all **54,880 product-date pairs** in the supplied sample and totals **230,030.50 units**.
 
-At **7Learnings**, we build state-of-the-art predictive machine learning platforms that optimize pricing and demand forecasting for leading enterprise e-commerce and retail brands. Our algorithms process hundreds of millions of transactions, customer signals, and pricing elasticities to automate daily business decisions.
+[Forecast CSV](predictions.csv) · [Backtest results](baseline_evidence.txt) · [Planner evidence](planner_evidence.txt) · [Run instructions](#reproduce-the-results) · [Original case study](CASE_STUDY.md)
 
-This challenge represents a realistic sample of the analytical and engineering challenges faced by our Data Science team.
+## Planner memo
 
----
+- **Plan for 1,113 units across the 37 Focus article / Tops products for September 7–20.** This is about 38 units below the four-week forecast. The two-week lookback reduced pooled weighted absolute percentage error for this group from 15.56% to 14.22%.
+- **Recent sales fell even on comparable days.** Sales fell 6.51%, from 1,168 to 1,092 units, when comparing the same products and weekdays. On the subset with sales and traffic in both periods, clicks fell 4.97% and units per 1,000 clicks stayed nearly flat. Lower traffic may have contributed to the decline.
+- **Check daily availability and confirmed replenishment.** The only stock snapshot is from September 1. If records show widespread stockouts in the later period and replenishment is confirmed for September 7–20, revise the forecast upward.
+- **Balance missed sales against excess inventory.** If the forecast drives replenishment, planning too low can lead to missed sales. Planning too high can leave excess stock and increase markdowns. This recommendation uses unit volumes and qualitative tradeoffs.
 
-## 1. Problem Statement
+## Planner investigation
 
-Your objective is to build a machine learning model that predicts **daily product-level unit sales** (`sales_before_returns` aggregated at the `(product_id, date)` grain) for a **14-day forecast horizon**:
+| Observation across 37 products | August 10–23 | August 24–September 6 |
+| --- | ---: | ---: |
+| Cleaned sales (units) | 1,179 | 1,102 |
+| Usable sales observations | 514 of 518 | 513 of 518 |
+| Clicks on 474 matched pairs with usable sales and positive clicks | 121,415 | 115,381 |
+| Units per 1,000 clicks on those pairs | 8.76 | 8.75 |
+| Product-days with stock observations | 0 | 37 |
+| Product-days on the promotion plan | 0 | 222 |
 
-$$\mathbf{Forecast\ Horizon:\ 2026\text{-}09\text{-}07\ through\ 2026\text{-}09\text{-}20\ (inclusive)}$$
+Cleaned sales fell **6.53%** across all usable observations. Matching the same product and weekday 14 days apart gives a similar **6.51%** decline across 509 pairs, so the difference in observation coverage has little effect on the measured decline.
 
-Use the exact `(product_id, date)` pairs in `sample_prediction.csv` as the target population. Forecast observed unit sales before returns for market `DE`, channel `myshop.de`, summed at product-day level. Explain any assumptions about future operating conditions that affect your forecast.
+- **Traffic.** Clicks fell while units per 1,000 clicks held steady. This pattern is consistent with a traffic-driven decline on the matched days.
+- **Stock.** The only stock snapshot, on September 1, covered all 37 products and recorded zero product-days with zero starting stock. Availability on the remaining days is unknown.
+- **Promotions.** Using the September 6 plan, matched sales fell 6.36% on pairs whose later day had no promotion scheduled and 6.69% on pairs whose later day had one. Estimating a promotion effect would require actual execution data and a comparison that accounts for which products and dates were selected.
 
----
+The investigation starts with a full product-day grid for the cohort. It sums clicks and takes the minimum recorded starting stock per product-day, then flags whether any planned promotion overlaps that day. Each join preserves the product-day grain. [Cohort SQL](planner_sales.sql) · [Supporting SQL](planner_factors.sql) · [Saved results](planner_evidence.txt)
 
-## 2. Historical Cutoff
+## Backtest and forecast selection
 
-- **Training Cutoff Date:** `2026-09-06 23:59:59`
-- Use only transactions, inventory observations, and realized traffic available on or before the cutoff. Any later observations in the database are reserved for evaluation.
-- **Promotion calendar:** For this exercise, treat the supplied `promotions` table as the plan known on September 6, including campaigns scheduled during the forecast horizon. State any assumptions needed to interpret that plan.
-- For historical validation, recreate the information available at that earlier forecast origin. The supplied promotion plan is not evidence that future campaigns were already known at earlier origins; use only campaigns already underway then unless earlier availability can be established. Document uncertainty about the timing of other features, including catalog-derived metrics.
+The **four-week baseline** averages a product’s observed sales for the target weekday. The **two-week comparison** uses the latest two weeks for that weekday and falls back to the four-week weekday average when needed. Both use the product’s four-week average across weekdays if the weekday average is unavailable.
 
----
+The backtest forecasts days 1–14 in one pass after each origin, using sales history through that origin. The four origins were July 12, July 26, August 9, and August 23, 2026. Both methods used the same scored rows at each origin. Across the four windows, 218,314 of 219,478 overall forecasts had usable actuals. The supplied catalog labels define the cohort throughout. Historical versions of those labels are unknown.
 
-## 3. Deliverables & Submission Format
+| Validation window | Segment | Lookback | WAPE | MAE | RMSE | Signed bias |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| Aug 24–Sep 6 | Overall | Four weeks | 22.02% | 0.877 | 1.415 | +12.29% |
+| Aug 24–Sep 6 | Overall | Two weeks | 20.41% | 0.812 | 1.344 | +10.57% |
+| Aug 24–Sep 6 | Focus article / Tops | Four weeks | 13.80% | 0.296 | 0.452 | +9.13% |
+| Aug 24–Sep 6 | Focus article / Tops | Two weeks | 11.12% | 0.239 | 0.386 | +6.76% |
+| All four windows | Overall | Four weeks | 15.09% | 0.652 | 10.743 | +3.71% |
+| All four windows | Overall | Two weeks | 14.70% | 0.635 | 15.159 | +4.66% |
+| All four windows | Focus article / Tops | Four weeks | 15.56% | 0.358 | 0.486 | +7.68% |
+| All four windows | Focus article / Tops | Two weeks | 14.22% | 0.327 | 0.520 | +5.27% |
 
-You may submit your solution as:
+WAPE and signed bias divide by the sum of actual units. The script returns a missing value for either metric when that sum is zero. Positive bias means overforecasting. MAE and RMSE are in units per product-day. Pooled metrics use the individual scored rows from all four windows.
 
-1. The completed **`Coding Challenge.ipynb`** Jupyter Notebook, **OR**
-2. A clean, modular Python repository/scripts.
+The **final export** uses two weeks for Focus article / Tops, where this lookback improved WAPE in three of four windows and reduced pooled overforecasting. It uses four weeks for the rest of the catalog. Across all products, the four-week lookback had lower bias and RMSE in the primary backtest. The table reports the two lookbacks applied separately. These historical windows informed model selection, and scoring the combined rule remains follow-up work. The forecast assumes that traffic, availability, and promotion activity continue to support sales patterns similar to the recent lookback periods.
 
-Include the baseline comparison, investigation SQL and its displayed or saved outputs, the supporting table or chart, and the client memo. These may all live in the notebook; scripts should include brief run instructions and saved results. Keep the three-hour limit and note any unfinished work.
+A 10,000-unit observation for product `670307` on July 8 drove several large July forecast errors. Excluding that observation from training reduced pooled overall RMSE from 10.743 to 0.949 for four weeks and from 15.159 to 0.933 for two weeks. The primary run retains the observed value. [Forecast SQL](weekday_forecasts.sql) · [Backtest results](baseline_evidence.txt) · [Sensitivity results](outlier_sensitivity_evidence.txt)
 
-### Output File: `predictions.csv`
+## Data preparation
 
-Your code must generate a `predictions.csv` file saved in the root of the project directory. A `sample_prediction.csv` file is provided in this repository to illustrate the expected structure and target `(product_id, date)` pairs.
+- Kept transactions for `DE` and `myshop.de` from the start of continuous sales history on September 16, 2024 through September 6, 2026 at 23:59:59. This excludes the January 1970 timestamps.
+- Removed 26,832 exact duplicate rows representing 100,239 recorded units. Trimming and lowercasing product IDs recovered 24,543 matches while preserving uniqueness across the 3,920 catalog IDs. The catalog join matched 2,668,586 deduplicated rows.
+- Summed `sales_before_returns` by product and date. Missing observations remain unknown because a missing record can indicate incomplete coverage. The model excludes 482 negative daily totals from training and scoring because the target is nonnegative sales before returns. [Transaction SQL](historical_transactions.sql) · [Daily sales SQL](daily_sales.sql)
 
-The CSV must match the following format:
+## Reproduce the results
 
-```csv
-product_id,date,predicted_sales
-667836,2026-09-07,1.45
-667836,2026-09-08,1.20
-...
+Run these commands from the repository root. The scripts were run with Python 3.10 and DuckDB 1.5.6. The PowerShell commands also install Zstandard 0.25.0 for decompression.
+
+```powershell
+python -m venv .venv
+& .\.venv\Scripts\python.exe -m pip install duckdb==1.5.6 zstandard==0.25.0
 ```
 
-- **Columns:** `product_id` (string), `date` (YYYY-MM-DD), `predicted_sales` (numeric float/int).
-- **Prediction Period:** `2026-09-07` through `2026-09-20` (14 days) for all active catalog products.
+If `7ldata.duckdb` is absent, download and decompress it in the repository root. The original brief includes the `curl` and `zstd` commands. On Windows, you can use Python for decompression. [Data download instructions](CASE_STUDY.md#4-environment-setup--data-preparation)
 
----
+```powershell
+curl.exe --fail --location --output 7ldata.duckdb.zst "https://storage.googleapis.com/candidate-01-7l-datascience/7ldata.duckdb.zst"
+if ($LASTEXITCODE -ne 0) { throw "Database download failed." }
 
-## 4. Environment Setup & Data Preparation
+@'
+from pathlib import Path
 
-### Prerequisites
+import zstandard
 
-- Python 3.10+ (tested on Python 3.10, 3.11, 3.12, 3.14)
-- Virtual environment tool (`venv` or `uv`)
-- `zstd` (Zstandard compression CLI)
+partial = Path("7ldata.duckdb.part")
+with open("7ldata.duckdb.zst", "rb") as source, partial.open("wb") as target:
+    zstandard.ZstdDecompressor().copy_stream(source, target)
+partial.rename("7ldata.duckdb")
+'@ | & .\.venv\Scripts\python.exe -
+```
 
-### Installation & Data Decompression
+```powershell
+& .\.venv\Scripts\python.exe forecast_baseline.py
+& .\.venv\Scripts\python.exe forecast_baseline.py --exclude-july-spike
+& .\.venv\Scripts\python.exe planner_investigation.py
+& .\.venv\Scripts\python.exe export_predictions.py
+```
 
-1. **Clone / Enter directory:**
+On macOS or Linux, follow the linked data instructions, create the environment with `python3 -m venv .venv`, and activate it with `source .venv/bin/activate`. Use `python` in place of `& .\.venv\Scripts\python.exe` in the install and run commands.
 
-   ```bash
-   cd /path/to/intermediate
-   ```
+The scripts write the evidence files and `predictions.csv` to the repository root. The exporter checks for missing or duplicate product-date keys and for finite, nonnegative predictions. It writes product IDs and dates in the exact order of `sample_prediction.csv`.
 
-2. **Acquire & Decompress Database Archive:**
-   Download the compressed database archive (`7ldata.duckdb.zst`, ~123 MiB):
+## AI disclosure
 
-   ```bash
-   # Download archive:
-   curl -O https://storage.googleapis.com/candidate-01-7l-datascience/7ldata.duckdb.zst
-   # Alternatively with gcloud:
-   # gcloud storage cp gs://candidate-01-7l-datascience/7ldata.duckdb.zst .
-
-   # Decompress the zstd archive to generate 7ldata.duckdb (~241 MiB):
-   zstd -d 7ldata.duckdb.zst -o 7ldata.duckdb
-   ```
-
-   *Note: If `7ldata.duckdb` already exists in your workspace, decompression is not needed.*
-
-3. **Create & activate a virtual environment:**
-
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install --upgrade pip
-   pip install -r requirements.txt
-   ```
-
-   *Alternative with `uv`:*
-
-   ```bash
-   uv venv
-   source .venv/bin/activate
-   uv pip install -r requirements.txt
-   ```
-
-4. **Launch JupyterLab:**
-
-   ```bash
-   jupyter lab "Coding Challenge.ipynb"
-   ```
-
----
-
-## 5. AI Usage & Transparency Policy
-
-At 7Learnings, we recognize modern generative AI assistants (ChatGPT, Claude, GitHub Copilot, Cursor, etc.) as powerful everyday productivity enhancers. **You are fully permitted to use AI tools for this case study.**
-
-However, we uphold strict standards of transparency and technical mastery:
-
-1. **Disclosure:** You must explicitly document which AI tools were used and the capacity in which they assisted you (e.g., generating boilerplate SQL, debugging errors, suggesting feature transformations). A dedicated markdown declaration cell is provided in `Coding Challenge.ipynb`.
-2. **Analytical Ownership:** You should be able to trace your conclusions to the underlying records, explain your data preparation, joins, validation, and assumptions, and discuss how new information could change your recommendation. AI assistance and model complexity are not measures of analytical ownership.
-
----
-
-## 6. Dataset Description (`7ldata.duckdb`)
-
-The dataset is provided as a local [DuckDB](https://duckdb.org/) database in `7ldata.duckdb` (or compressed as `7ldata.duckdb.zst`). It contains 5 core retail tables:
-
-| Table | Description | Key Columns |
-| :--- | :--- | :--- |
-| `transactions` | Granular basket-level transaction records | `market, channel, product_id, time, sales_before_returns, order_id, returns, basket_position, revenue, profit, tax_rate` |
-| `product_attributes` | Product catalog metadata & hierarchy | `product_id, product_group_id, brand, product_category_1/2/3, season, color, cur_gross_red_price, gross_recom_price, is_own_brand, item_role` |
-| `promotions` | Promotion campaigns and discounts | `market, channel, product_id, active_since, active_till, promotion_name, voucher_rate` |
-| `stock` | Dated inventory snapshots per product | `market, channel, product_id, active_since, end_liquidation_value, stock_start_of_day` |
-| `traffic` | Daily online traffic, impressions, and marketing cost | `market, channel, product_id, active_since, active_till, total_clicks, paid_clicks, marketing_cost` |
-
----
-
-## 7. Structure of the Challenge
-
-The challenge is divided into four key stages:
-
-### Part 1: Data Analysis
-
-- Analyze the provided data and summarize your findings about its structure, coverage, and relationships relevant to the forecasting task.
-- Decide whether any data preparation, transformations, or enrichment are needed. Document what you chose to do and why.
-
-### Part 2: Feature Engineering
-
-- You are free to engineer any features you see fit for your model using the provided tables (`product_attributes`, `promotions`, `stock`, `traffic`, and `transactions`).
-- *Tip: DuckDB SQL allows fast in-database aggregation and joins with minimal memory overhead.*
-
-### Part 3: Predictive Modeling
-
-- Build a predictive model to forecast daily product-level unit sales for the 14-day horizon.
-- You can use any model architecture or auditable library of your choice, provided you provide reproducible code and any extra dependencies needed to run it. XGBoost is pre-installed in the environment as a recommended starting point.
-- Include a simple baseline and compare it with one proposed approach. You may retain the baseline as your final model if the comparison supports that decision.
-- Evaluate a full 14-day historical forecast window ending on or before September 6. Explain how you generate all 14 days without using observations from inside that window as features.
-
-### Part 4: Forecast Evaluation & Merchandise Planner Investigation
-
-#### 1. Quantitative Evaluation
-
-Compare the baseline and your proposed approach on the same historical 14-day window using:
-
-- **WAPE:** $\frac{\sum |y - \hat{y}|}{\sum y}$
-- **MAE** and **RMSE**
-- **Forecast Bias:** $\frac{\sum \hat{y} - \sum y}{\sum y}$
-
-Report results overall and for the investigation cohort below. State how you handle a zero denominator. Report WAPE and bias consistently as fractions or percentages.
-
-#### 2. Merchandise Planner Investigation
-
-The merchandise planner is reviewing products with `item_role = 'Focus article'` and `product_category_2 = 'Tops'` in `product_attributes`. They ask:
-
-> "Sales for this group appear lower in August 24–September 6 than in August 10–23. Should we reduce our sales forecast for September 7–20? Investigate the evidence and recommend what we should do."
-
-Use information available at the September 6 cutoff:
-
-1. Verify the planner's observation using your cleaned data. Show the cohort size, sales totals for both periods, and the change. Explain any material sensitivity to your cleaning or coverage assumptions.
-2. Investigate at least two plausible explanations using transactions and relevant supporting tables. Submit executable DuckDB SQL and its output, plus one compact table or chart. Explain which evidence supports each explanation and which evidence is missing or contradicts it. Account for table coverage and join grain.
-3. Explain the implication for your sales forecast. Test one consequential modeling assumption with a small historical comparison or sensitivity check. You may reuse your baseline comparison; a result that does not improve performance is acceptable if explained. Distinguish sensitivity to an assumption from evidence that a change improves accuracy.
-
-There is no requirement to identify a single cause or recommend a forecast reduction. A supported conclusion that the available data cannot resolve an explanation is valid. Feature importance plots are optional.
-
-#### 3. Client Memo
-
-Write a memo of **at most 300 words**, in **3–5 bullets**, for the merchandise planner. Include:
-
-- Your recommended action and two quantified findings, traceable to your submitted outputs.
-- The strongest alternative explanation or uncertainty, and the additional information that would most affect your decision.
-- The commercial consequence if your recommendation is wrong, and one condition that would change it. State any cost assumptions you use.
-
-Distinguish observed facts, interpretations, and assumptions. We will discuss your evidence and ask how your recommendation changes under a revised business assumption during the interview.
-
----
-
-## 8. Evaluation Criteria
-
-We assess submissions across four dimensions:
-
-1. **Data Reasoning (30%):** Are cleaning decisions supported, joins sound, findings reproducible, and competing explanations assessed against the records?
-2. **Forecasting & Validation (25%):** Is the comparison with the baseline fair, free of temporal leakage, and informative about the full 14-day forecast and the investigation cohort?
-3. **Business Judgment (25%):** Does the memo turn quantified evidence into an actionable recommendation with explicit uncertainty and commercial tradeoffs?
-4. **Communication (20%):** Are your findings, assumptions, uncertainties, and recommendations clearly explained and supported by evidence?
-
-Runnable code and the required prediction file are basic deliverables. Model complexity, extensive tuning, and elaborate software architecture do not earn additional credit by themselves.
-
-Good luck, and we look forward to reviewing your solution!
+I used OpenAI ChatGPT and Codex to assist with Python and SQL development, debugging, code review, and documentation. I also used these tools to help review model validation results and analytical findings. I executed the code locally, checked the outputs, and reviewed the final conclusions before submission.
