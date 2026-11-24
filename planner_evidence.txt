@@ -1,0 +1,22 @@
+Sales and coverage by period
+period | products | product_days | usable_days | missing_days | negative_days | cleaned_units
+Aug 10-23 | 37 | 518 | 514 | 3 | 1 | 1179
+Aug 24-Sep 6 | 37 | 518 | 513 | 5 | 0 | 1102
+
+Traffic, stock, and promotion coverage
+period | product_days | traffic_days | stock_days | first_stock_date | last_stock_date | zero_stock_days | planned_promotion_days
+Aug 10-23 | 518 | 518 | 0 | None | None | 0 | 0
+Aug 24-Sep 6 | 518 | 481 | 37 | 2026-09-01 | 2026-09-01 | 0 | 222
+
+Traffic and sales on matched days
+matched_pairs | earlier_clicks | later_clicks | earlier_units | later_units | earlier_units_per_1000_clicks | later_units_per_1000_clicks
+474 | 121415 | 115381 | 1063 | 1010 | 8.76 | 8.75
+
+Matched sales by later promotion plan status
+later_day_on_plan | matched_pairs | earlier_units | later_units | change_pct
+False | 291 | 660 | 618 | -6.36
+True | 218 | 508 | 474 | -6.69
+
+Sales on matched product and weekday pairs
+matched_pairs | earlier_units | later_units | change_pct
+509 | 1168 | 1092 | -6.51
