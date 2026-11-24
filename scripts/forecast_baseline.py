@@ -18,7 +18,7 @@ def main():
             FROM (VALUES (DATE '2026-07-12'), (DATE '2026-07-26'),
                          (DATE '2026-08-09'), (DATE '2026-08-23')) AS dates(origin)
         """)
-        for name in ("historical_transactions", "daily_sales"):
+        for name in ("scoped_transactions", "historical_transactions", "daily_sales"):
             sql = (sql_dir / f"{name}.sql").read_text(encoding="utf-8-sig")
             db.execute(f"CREATE TEMP VIEW {name} AS {sql}")
 
@@ -37,11 +37,8 @@ def main():
         result = db.execute("""
             WITH evaluated AS (
                 SELECT f.origin, f.four_week_forecast, f.two_week_forecast,
-                       s.recorded_units AS actual,
-                       c.item_role = 'Focus article'
-                       AND c.product_category_2 = 'Tops' AS planner_cohort
+                       f.selected_forecast, f.planner_cohort, s.recorded_units AS actual
                 FROM weekday_forecasts AS f
-                JOIN product_attributes AS c USING (product_id)
                 LEFT JOIN daily_sales AS s
                   ON s.product_id = f.product_id
                  AND s.sales_date = f.sales_date
@@ -54,7 +51,8 @@ def main():
                 SELECT origin, segment, actual, method, predicted
                 FROM segments
                 CROSS JOIN LATERAL (
-                    VALUES ('4 weeks', four_week_forecast), ('2 weeks', two_week_forecast)
+                    VALUES ('4 weeks', four_week_forecast), ('2 weeks', two_week_forecast),
+                           ('Export rule', selected_forecast)
                 ) AS methods(method, predicted)
             )
             SELECT COALESCE(CAST(origin AS VARCHAR), 'Pooled') AS forecast_origin,

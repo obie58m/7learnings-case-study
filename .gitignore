@@ -6,3 +6,4 @@ __pycache__/
 /7ldata.duckdb.zst
 /7ldata.duckdb.zst.part
 /7ldata.duckdb.part
+/.7ldata-*/

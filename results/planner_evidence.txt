@@ -1,7 +1,7 @@
 Sales and coverage by period
-period | products | product_days | usable_days | missing_days | negative_days | cleaned_units
-Aug 10-23 | 37 | 518 | 514 | 3 | 1 | 1179
-Aug 24-Sep 6 | 37 | 518 | 513 | 5 | 0 | 1102
+period | products | product_days | usable_days | missing_days | negative_days | signed_units | cleaned_units
+Aug 10-23 | 37 | 518 | 514 | 3 | 1 | 1172 | 1179
+Aug 24-Sep 6 | 37 | 518 | 513 | 5 | 0 | 1102 | 1102
 
 Traffic, stock, and promotion coverage
 period | product_days | traffic_days | stock_days | first_stock_date | last_stock_date | zero_stock_days | planned_promotion_days
@@ -20,3 +20,12 @@ True | 218 | 508 | 474 | -6.69
 Sales on matched product and weekday pairs
 matched_pairs | earlier_units | later_units | change_pct
 509 | 1168 | 1092 | -6.51
+
+Forecast-horizon promotion plan as of September 6
+promotion_name | voucher_pct | first_date | last_date | products | planned_product_days
+Voucher Campaign 10% | 10.0 | 2026-09-07 | 2026-09-20 | 37 | 518
+Voucher Campaign 5% | 5.0 | 2026-09-11 | 2026-09-16 | 37 | 222
+
+Transaction and catalog cleaning audit
+transaction_rows | deduplicated_rows | duplicate_rows_removed | units_in_removed_rows | matched_rows | normalized_matches | missing_ids | unmatched_ids | catalog_rows | normalized_catalog_ids | observed_product_days | negative_product_days
+2709047 | 2682215 | 26832 | 100239 | 2668586 | 24543 | 13434 | 195 | 3920 | 3920 | 2668586 | 482

@@ -14,6 +14,7 @@ def main():
                    COUNT(usable_units) AS usable_days,
                    COUNT(*) FILTER (WHERE recorded_units IS NULL) AS missing_days,
                    COUNT(*) FILTER (WHERE recorded_units < 0) AS negative_days,
+                   SUM(recorded_units) AS signed_units,
                    SUM(usable_units) AS cleaned_units
             FROM planner_sales
             GROUP BY period
@@ -79,10 +80,17 @@ def main():
             WHERE earlier.usable_units IS NOT NULL
               AND later.usable_units IS NOT NULL
         """,
+        "Forecast-horizon promotion plan as of September 6":
+            (sql_dir / "planner_promotion_outlook.sql").read_text(encoding="utf-8-sig"),
+        "Transaction and catalog cleaning audit":
+            (sql_dir / "data_quality.sql").read_text(encoding="utf-8-sig"),
     }
 
     with duckdb.connect(str(project / "7ldata.duckdb"), read_only=True) as db:
-        for name in ("historical_transactions", "daily_sales", "planner_sales", "planner_factors"):
+        for name in (
+            "scoped_transactions", "historical_transactions", "daily_sales",
+            "planner_sales", "planner_factors",
+        ):
             sql = (sql_dir / f"{name}.sql").read_text(encoding="utf-8-sig")
             db.execute(f"CREATE TEMP VIEW {name} AS {sql}")
 

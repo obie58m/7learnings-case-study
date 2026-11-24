@@ -13,7 +13,7 @@ def main():
     with duckdb.connect(str(project / "7ldata.duckdb"), read_only=True) as db:
         db.execute("CREATE TEMP VIEW forecast_origins AS SELECT DATE '2026-09-06' AS origin")
 
-        for name in ("historical_transactions", "daily_sales"):
+        for name in ("scoped_transactions", "historical_transactions", "daily_sales"):
             sql = (sql_dir / f"{name}.sql").read_text(encoding="utf-8-sig")
             db.execute(f"CREATE TEMP VIEW {name} AS {sql}")
 
@@ -22,17 +22,8 @@ def main():
         db.execute(f"CREATE TEMP VIEW weekday_forecasts AS {sql}")
 
         model_rows = db.execute("""
-            WITH choices AS (
-                SELECT f.*,
-                       c.item_role = 'Focus article'
-                       AND c.product_category_2 = 'Tops' AS planner_cohort
-                FROM weekday_forecasts AS f
-                JOIN product_attributes AS c USING (product_id)
-            )
-            SELECT product_id, sales_date, planner_cohort,
-                   CASE WHEN planner_cohort THEN two_week_forecast
-                        ELSE four_week_forecast END AS predicted_sales
-            FROM choices
+            SELECT product_id, sales_date, planner_cohort, selected_forecast
+            FROM weekday_forecasts
         """).fetchall()
 
     forecasts = {
